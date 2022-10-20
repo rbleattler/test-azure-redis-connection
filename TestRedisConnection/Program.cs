@@ -1,56 +1,29 @@
-﻿using StackExchange.Redis;
-using System;
-using System.Text;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis;
 
 namespace TestRedisConnection
 {
     class Program
     {
-        //Update values
-        const string OUR_NODE = "YOUR_NODE_HERE";
-        const string PRIMARY_ACCESS_KEY = "YOUR_PRIMARY_KEY_HERE";
-        const string REDIS_CONNECTION_STRING = "YOUR_CONNECTION_STRING_HERE";
-
-        const string testKey = "testKey";
-        const string testValue = "testValue";
-
         #region Properties and Fields
-        private static Lazy<ConnectionMultiplexer> redisConnection = GetNewRedisConnection();
-        public static LazyThreadSafetyMode LazyThreadSafetyMode = LazyThreadSafetyMode.None;
-        private static Lazy<ConnectionMultiplexer> GetNewRedisConnection()
-        {
-            return new Lazy<ConnectionMultiplexer>(() =>
-            {
-                return ConnectionMultiplexer.Connect(REDIS_CONNECTION_STRING);
-            }, LazyThreadSafetyMode);
-        }
 
-        public static IDatabase Cache
-        {
-            get
-            {
-                return Connection.GetDatabase();
-            }
-        }
+        private static string _ourNode;
+        private static string _primaryAccessKey;
+        private static string _endpointString;
+        private static bool _connectionSucceeded;
+        private static string _endUrl = ".redis.cache.windows.net:6380";
+        private static ConnectionMultiplexer _muxer;
 
-        public static ConnectionMultiplexer Connection
-        {
-            get
-            {
-                return redisConnection.Value;
-            }
-            set
-            {
-                if (value == null)
-                    redisConnection = GetNewRedisConnection();
-            }
-        }
         #endregion
 
-        async static Task Main()
+        static async Task Main(string[] args)
         {
+            if (args.Length > 2) _endUrl = args[2];
+            _ourNode = args[0];
+            _primaryAccessKey = args[1];
+            _endpointString = $"{_ourNode}{_endUrl}";
             await ConnectionMethod1();
         }
 
@@ -58,24 +31,32 @@ namespace TestRedisConnection
         {
             var config = new ConfigurationOptions
             {
-                EndPoints = { $"{OUR_NODE}.redis.cache.windows.net" },
-                Password = PRIMARY_ACCESS_KEY,
+                EndPoints = { _endpointString },
+                Password = _primaryAccessKey,
                 Ssl = true
             };
-            Console.WriteLine(config);
+            Console.WriteLine(config.ToString().Replace(_primaryAccessKey, "********"));
+            try
+            {
+                _muxer = await ConnectionMultiplexer.ConnectAsync(config);
+                _connectionSucceeded = _muxer.IsConnected;
+            }
+            catch (Exception)
+            {
+                // We don't do anything with the exception here because we only care if the connection succeeds. 
+                _connectionSucceeded = false;
+            }
 
-            var muxer = await ConnectionMultiplexer.ConnectAsync(config);
-            var db = muxer.GetDatabase();
+            if (_connectionSucceeded)
+            {
+                await _muxer.CloseAsync();
+                _muxer.Dispose();
+            }
 
-            RedisKey key = "abc";
-            await db.KeyDeleteAsync(key);
-            await db.StringSetAsync(key, 42);
-
-            var val = (int)await db.StringGetAsync(key);
-
-            Console.WriteLine(val);
+            Environment.ExitCode = _connectionSucceeded ? 1 : 0;
+            Console.WriteLine($"Connection Succeeded : {_connectionSucceeded}");
+            Console.WriteLine("Press any key to continue...");
             Console.ReadLine();
-
         }
     }
 }
