@@ -16,7 +16,7 @@ TODO: Update to support secure strings
 ```powershell
 cachedebugger.exe my-redis-resourcename $(Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText)
 
-cachedebugger.exe my-redis-resourcename $(Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText)
+cachedebugger.exe my-redis-resourcename YOURREDISPRIMARYKEY
 ```
 
 
